@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Integer, VARCHAR, String, Float
 from sqlalchemy.orm import Mapped, mapped_column
 from flask_wtf import FlaskForm
+from wtforms import IntegerField
+from wtforms.validators import DataRequired, NumberRange
 
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
@@ -38,6 +40,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///movies.db"
 db.init_app(app)
 
 Bootstrap5(app)
+
+
+class RatingForm(FlaskForm):
+    rating = StringField(label='Your Rating Out of 10 e.g 7.5', validators=[DataRequired(), ])
+    review = StringField(label='Your Review', validators=[DataRequired()])
+    done = SubmitField('Done')
 
 
 class Movies(db.Model):
@@ -80,8 +88,24 @@ with app.app_context():
 
 @app.route("/")
 def home():
-    movie_list = db.session.execute(db.select(Movies).order_by(Movies.id)).scalars().all()
+    with app.app_context():
+        movie_list = db.session.execute(db.select(Movies).order_by(Movies.id)).scalars().all()
     return render_template("index.html", movies=movie_list)
+
+
+@app.route("/edit/<int:movie_id>", methods=['GET', 'POST'])
+def edit(movie_id):
+    form = RatingForm()
+    with app.app_context():
+        movie_to_update = db.session.execute(db.select(Movies).where(Movies.id == movie_id)).scalar()
+    if form.validate_on_submit():
+        with app.app_context():
+            movie_to_update = db.session.execute(db.select(Movies).where(Movies.id == movie_id)).scalar()
+            movie_to_update.rating = form.rating.data
+            movie_to_update.review = form.review.data
+            db.session.commit()
+        return redirect(url_for('home'))
+    return render_template("edit.html", title=movie_to_update.title, form=form)
 
 
 if __name__ == '__main__':
