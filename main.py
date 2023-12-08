@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, render_template, redirect, url_for, request
 from flask_bootstrap import Bootstrap5
 from flask_sqlalchemy import SQLAlchemy
@@ -41,6 +43,10 @@ db.init_app(app)
 
 Bootstrap5(app)
 
+api_key = os.environ.get("api_key", "Couldn't find api_key")
+token = os.environ.get("token", "Couldn't find token")
+url = "https://api.themoviedb.org/3/search/movie"
+
 
 class RatingForm(FlaskForm):
     rating = StringField(label='Your Rating Out of 10 e.g 7.5', validators=[DataRequired(), ])
@@ -49,7 +55,7 @@ class RatingForm(FlaskForm):
 
 
 class AddMovieForm(FlaskForm):
-    title = StringField(label='Movie Title', validators=[DataRequired(), ])
+    title = StringField(label='Movie Title', validators=[DataRequired()])
     add = SubmitField('Add Movie')
 
 
@@ -66,29 +72,6 @@ class Movies(db.Model):
 
 with app.app_context():
     db.create_all()
-    # new_movie = Movies(
-    #     title="Phone Booth",
-    #     year=2002,
-    #     description="Publicist Stuart Shepard finds himself trapped in a phone booth, pinned down by an extortionist's sniper rifle. Unable to leave or receive outside help, Stuart's negotiation with the caller leads to a jaw-dropping climax.",
-    #     rating=7.3,
-    #     ranking=10,
-    #     review="My favourite character was the caller.",
-    #     img_url="https://image.tmdb.org/t/p/w500/tjrX2oWRCM3Tvarz38zlZM7Uc10.jpg"
-    # )
-    # db.session.add(new_movie)
-    # db.session.commit()
-
-    # second_movie = Movies(
-    #     title="Avatar The Way of Water",
-    #     year=2022,
-    #     description="Set more than a decade after the events of the first film, learn the story of the Sully family (Jake, Neytiri, and their kids), the trouble that follows them, the lengths they go to keep each other safe, the battles they fight to stay alive, and the tragedies they endure.",
-    #     rating=7.3,
-    #     ranking=9,
-    #     review="I liked the water.",
-    #     img_url="https://image.tmdb.org/t/p/w500/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg"
-    # )
-    # db.session.add(second_movie)
-    # db.session.commit()
 
 
 @app.route("/")
@@ -96,6 +79,27 @@ def home():
     with app.app_context():
         movie_list = db.session.execute(db.select(Movies).order_by(Movies.id)).scalars().all()
     return render_template("index.html", movies=movie_list)
+
+
+@app.route('/add', methods=['GET', 'POST'])
+def add():
+    form = AddMovieForm()
+    if form.validate_on_submit():
+        movie_title = form.title.data
+        print(movie_title)
+        end_point = f"{url}?query={movie_title}&api_key={api_key}"
+        # headers = {
+        #     "accept": "application/json",
+        #     "Authorization": f"Bearer {token}"
+        # }
+
+        response = requests.get(end_point)
+        response.raise_for_status()
+        movies_data = response.json()
+        print(movies_data)
+
+        return render_template("select.html", movies=movies_data['results'])
+    return render_template("add.html", form=form)
 
 
 @app.route("/edit/<int:movie_id>", methods=['GET', 'POST'])
