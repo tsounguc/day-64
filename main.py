@@ -64,9 +64,9 @@ class Movies(db.Model):
     title: Mapped[str] = mapped_column(VARCHAR, unique=True, nullable=False)
     year: Mapped[str] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)
-    rating: Mapped[float] = mapped_column(Float, nullable=False)
-    ranking: Mapped[int] = mapped_column(Integer, nullable=False)
-    review: Mapped[str] = mapped_column(String, nullable=False)
+    rating: Mapped[float] = mapped_column(Float, nullable=True)
+    ranking: Mapped[int] = mapped_column(Integer, nullable=True)
+    review: Mapped[str] = mapped_column(String, nullable=True)
     img_url: Mapped[str] = mapped_column(VARCHAR, nullable=False)
 
 
@@ -77,7 +77,21 @@ with app.app_context():
 @app.route("/")
 def home():
     with app.app_context():
-        movie_list = db.session.execute(db.select(Movies).order_by(Movies.id)).scalars().all()
+        # get movie list from lowest rating to highest
+        movie_list = db.session.execute(db.select(Movies).order_by(Movies.rating)).scalars().all()
+
+        # reverse so the highest rating is the first item and lowest is last on the list
+        movie_list.reverse()
+
+        # update ranking based on rating
+        for index in range(0, len(movie_list)):
+            book_to_update = db.session.execute(db.select(Movies).where(Movies.id == movie_list[index].id)).scalar()
+            book_to_update.ranking = index + 1
+            db.session.commit()
+
+        # get updated movie list
+        movie_list = db.session.execute(db.select(Movies).order_by(Movies.ranking)).scalars().all()
+        
     return render_template("index.html", movies=movie_list)
 
 
@@ -115,6 +129,37 @@ def edit(movie_id):
             db.session.commit()
         return redirect(url_for('home'))
     return render_template("edit.html", title=movie_to_update.title, form=form)
+
+
+@app.route('/select/<int:movie_id>')
+def select(movie_id):
+    movie_details_url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = requests.get(url=movie_details_url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    print(data)
+
+    with app.app_context():
+        movie_to_add = Movies(
+            title=data['title'],
+            img_url=f"https://image.tmdb.org/t/p/original/{data['poster_path']}",
+            year=data['release_date'],
+            description=data['overview'],
+            rating=0.0,
+            ranking="",
+            review=""
+
+        )
+        db.session.add(movie_to_add)
+        db.session.commit()
+
+        movie_to_edit = db.session.execute(db.select(Movies).where(Movies.title == data['title'])).scalar()
+    return redirect(url_for('edit', movie_id=movie_to_edit.id))
 
 
 @app.route('/delete/<int:movie_id>')
