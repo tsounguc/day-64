@@ -48,6 +48,11 @@ class RatingForm(FlaskForm):
     done = SubmitField('Done')
 
 
+class AddMovieForm(FlaskForm):
+    title = StringField(label='Movie Title', validators=[DataRequired(), ])
+    add = SubmitField('Add Movie')
+
+
 class Movies(db.Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(VARCHAR, unique=True, nullable=False)
